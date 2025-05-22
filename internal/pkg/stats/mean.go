@@ -14,12 +14,10 @@ func (m *mean) add(value uint64) {
 
 func (m *mean) get() float64 {
 	count := atomic.LoadUint64(&m.count)
-	sum := atomic.LoadUint64(&m.sum)
-
 	if count == 0 {
 		return 0
 	}
-
+	sum := atomic.LoadUint64(&m.sum)
 	return float64(sum) / float64(count)
 }
 
