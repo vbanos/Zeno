@@ -7,17 +7,19 @@ import (
 	pdfmodel "github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
+type PDFOutlinkExtractor struct{}
+
 func init() {
 	// https://pkg.go.dev/github.com/pdfcpu/pdfcpu@v0.9.1/pkg/pdfcpu/model#ConfigPath
 	// > If you want to disable config dir usage in a multi threaded environment you are encouraged to use api.DisableConfigDir().
 	pdfapi.DisableConfigDir()
 }
 
-func IsPDF(URL *models.URL) bool {
+func (PDFOutlinkExtractor) Match(URL *models.URL) bool {
 	return URL.GetMIMEType().Is("application/pdf")
 }
 
-func PDF(URL *models.URL) (outlinks []*models.URL, err error) {
+func (PDFOutlinkExtractor) Extract(URL *models.URL) (outlinks []*models.URL, err error) {
 	defer URL.RewindBody()
 
 	annots, err := pdfapi.Annotations(URL.GetBody(), nil, nil)

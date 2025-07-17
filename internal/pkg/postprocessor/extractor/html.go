@@ -22,6 +22,12 @@ func IsHTML(URL *models.URL) bool {
 	return URL.GetMIMEType() != nil && strings.Contains(URL.GetMIMEType().String(), "html")
 }
 
+type HTMLOutlinkExtractor struct{}
+
+func (HTMLOutlinkExtractor) Match(URL *models.URL) bool {
+	return IsHTML(URL)
+}
+
 func HTMLOutlinks(item *models.Item) (outlinks []*models.URL, err error) {
 	defer item.GetURL().RewindBody()
 

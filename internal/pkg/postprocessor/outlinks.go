@@ -14,6 +14,31 @@ import (
 	"github.com/internetarchive/Zeno/pkg/models"
 )
 
+type OutlinkExtractor interface {
+	Match(*models.URL) bool
+	Extract(*models.URL) ([]*models.URL, error)
+}
+
+// The order of the extractors matters.
+var outlinkExtractors = []OutlinkExtractor{
+	truthsocial.TruthsocialAccountOutlinkExtractor{},
+	truthsocial.TruthsocialAccountLookupOutlinkExtractor{},
+	extractor.ObjectStorageOutlinkExtractor{},
+	// extractor.IsSitemapXML
+	// extractor.IsHTML
+	extractor.PDFOutlinkExtractor{},
+	reddit.RedditPostAPIOutlinkExtractor{},
+}
+
+func runOutlinkExtractors(url *models.URL) ([]*models.URL, error) {
+	for _, p := range outlinkExtractors {
+		if p.Match(url) {
+			return p.Extract(url)
+		}
+	}
+	return nil, nil
+}
+
 func extractOutlinks(item *models.Item) (outlinks []*models.URL, err error) {
 	var (
 		contentType = item.GetURL().GetResponse().Header.Get("Content-Type")
@@ -28,25 +53,13 @@ func extractOutlinks(item *models.Item) (outlinks []*models.URL, err error) {
 	}
 
 	// Run specific extractors
+	outlinks, err = runOutlinkExtractors(item.GetURL())
+	if err != nil {
+		logger.Error("unable to extract outlinks", "err", err.Error(), "item", item.GetShortID(), "url", item.GetURL())
+		return outlinks, err
+	}
+
 	switch {
-	case truthsocial.IsAccountURL(item.GetURL()):
-		outlinks, err = truthsocial.GenerateAccountLookupURL(item.GetURL())
-		if err != nil {
-			logger.Error("unable to extract outlinks", "extractor", "truthsocial.GenerateAccountLookupURL", "err", err.Error(), "item", item.GetShortID(), "url", item.GetURL())
-			return outlinks, err
-		}
-	case truthsocial.IsAccountLookupURL(item.GetURL()):
-		outlinks, err = truthsocial.GenerateOutlinksURLsFromLookup(item.GetURL())
-		if err != nil {
-			logger.Error("unable to extract outlinks", "extractor", "truthsocial.GenerateOutlinksURLsFromLookup", "err", err.Error(), "item", item.GetShortID(), "url", item.GetURL())
-			return outlinks, err
-		}
-	case extractor.IsObjectStorage(item.GetURL()):
-		outlinks, err = extractor.ObjectStorage(item.GetURL())
-		if err != nil {
-			logger.Error("unable to extract outlinks from ObjectStorage", "extractor", "ObjectStorage", "err", err.Error(), "item", item.GetShortID(), "url", item.GetURL())
-			return outlinks, err
-		}
 	case extractor.IsSitemapXML(item.GetURL()):
 		var assets []*models.URL
 
@@ -63,18 +76,6 @@ func extractOutlinks(item *models.Item) (outlinks []*models.URL, err error) {
 		outlinks, err = extractor.HTMLOutlinks(item)
 		if err != nil {
 			logger.Error("unable to extract outlinks", "extractor", "HTMLOutlinks", "err", err.Error(), "item", item.GetShortID(), "url", item.GetURL())
-			return outlinks, err
-		}
-	case extractor.IsPDF(item.GetURL()):
-		outlinks, err = extractor.PDF(item.GetURL())
-		if err != nil {
-			logger.Error("unable to extract outlinks", "extractor", "PDF", "err", err.Error(), "item", item.GetShortID(), "url", item.GetURL())
-			return outlinks, err
-		}
-	case reddit.IsPostAPI(item.GetURL()):
-		outlinks, err = reddit.ExtractAPIPostPermalinks(item)
-		if err != nil {
-			logger.Error("unable to extract outlinks", "extractor", "reddit.ExtractAPIPostPermalinks", "err", err.Error(), "item", item.GetShortID(), "url", item.GetURL())
 			return outlinks, err
 		}
 	default:
